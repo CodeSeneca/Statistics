@@ -17,29 +17,6 @@ class Statistics:
         # Array of booleans representing the occupation pattern
         self._occupation_pattern = None
 
-    def run(self) -> None:
-        """Run the Statistics Simulation"""
-
-        # Print the help message to the console
-        InputOutput.print_help()
-        # Process the command line arguments
-        self._io.process_arguments()
-
-        # Read in the surface
-        self._surface = self._io.read_surface()
-        print(self._surface)
-        num_places = self._surface.get_num_atoms()
-        num_adsorbed_places = self._io.get_num_adsorbed_places()
-        print(f"Number of adsorbed places: {num_adsorbed_places}")
-        print(f"Number of free places:     {num_places - num_adsorbed_places}")
-        print("--------------------------------")
-        print(f"Total:                     {num_places}\n")
-
-        # Generate the random occupation pattern according to self._occupied_fraction
-        self._occupation_pattern = np.zeros(num_places, dtype=int)
-        self.make_random_occupation(num_adsorbed_places)
-        print(self._occupation_pattern)
-
     def make_random_occupation(self, num_adsorbed_places) -> None:
         """Generate a random occupation pattern with num_adsorbed_places
         adsorbed places"""
@@ -62,6 +39,34 @@ class Statistics:
                   self._occupation_pattern[random_index] = 1
                   random_indeces.append(random_index)
                   break
+
+    def set_adsorbate() -> None:
+        """Set an adsorbate onto the surface"""
+        pass
+
+    def run(self) -> None:
+        """Run the Statistics Simulation"""
+
+        # Print the help message to the console
+        InputOutput.print_help()
+        # Process the command line arguments
+        self._io.process_arguments()
+
+        # Read in the surface
+        self._surface = self._io.read_surface()
+        print(self._surface)
+        num_places = self._surface.get_num_atoms()
+        num_adsorbed_places = self._io.get_num_adsorbed_places()
+        print(f"Number of adsorbed places: {num_adsorbed_places}")
+        print(f"Number of free places:     {num_places - num_adsorbed_places}")
+        print("--------------------------------")
+        print(f"Total:                     {num_places}\n")
+
+        # Generate the random occupation pattern according to
+        # num_adsorbed_places
+        self._occupation_pattern = np.zeros(num_places, dtype=int)
+        self.make_random_occupation(num_adsorbed_places)
+        print(self._occupation_pattern)
 
 def main() -> None:
     """Main function to drive everything"""
