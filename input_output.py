@@ -9,8 +9,10 @@ class InputOutput:
         # Number of command line arguments
         self._arg_number = len(self._arguments)
 
-        # Filename of the surface -> default: POSCAR
-        self._surface_filename = "POSCAR"
+        # Filename of the surface -> default: POSCAR_surf
+        self._surface_filename = "POSCAR_surf"
+        # Filename of the adsorbate -> default: POSCAR_ads
+        self._adsorbate_filename = "POSCAR_ads"
 
         # Number of adsorbed places -> default: 1
         self._num_adsorbed_places = 1
@@ -23,6 +25,10 @@ class InputOutput:
         print("******************\n")
         print("Author: Maximilian Bechtel, <maxi.bechtel@fau.de>")
         print("Lehrstuhl fuer Theoretische Chemie, Friedrich-Alexander-Universitaet Erlangen-Nuernberg\n")
+        print("Usage: python main.py [options]\n")
+        print("--surface=[string]:          Filename of the clean surface, default: POSCAR_surf")
+        print("--adsorbate=[string]:        Filename of the adsorbate,     default: POSCAR_ads")
+        print("--num_adsorbed_places=[int]: Number of adsorbed places:     default: 1\n")
 
     @staticmethod
     def read_poscar(filename: str) -> SimulationBox:
@@ -70,12 +76,21 @@ class InputOutput:
             arg_split = arg.split("=")
             if arg_split[0] == "--surface":
                 self._surface_filename = arg_split[1]
-            if arg_split[0] == "--num_adsorbed_places":
+            elif arg_split[0] == "--adsorbate":
+                self._adsorbate_filename = arg_split[1]
+            elif arg_split[0] == "--num_adsorbed_places":
                 self._num_adsorbed_places = int(arg_split[1])
 
     def read_surface(self) -> SimulationBox:
         """Read in the surface"""
 
-        print(f"Reading in the Simulation box from {self._surface_filename} ...\n")
+        print(f"Reading in the clean surface from {self._surface_filename} ...")
         box = InputOutput.read_poscar(self._surface_filename)
+        return box
+
+    def read_adsorbate(self) -> SimulationBox:
+        """Read in the adsorbate"""
+
+        print(f"Reading in the adsorbate from {self._adsorbate_filename} ...\n")
+        box = InputOutput.read_poscar(self._adsorbate_filename)
         return box

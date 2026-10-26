@@ -3,7 +3,7 @@ import numpy as np
 class UnitCell:
     """Class UnitCell: The simulation box"""
 
-    def __init__(self, lattice_constant, a1: list[float], a2: list[float], a3: list[float]):
+    def __init__(self, lattice_constant, a1: list, a2: list, a3: list):
         # Lattice constant
         self.lattice_constant = lattice_constant
         # Lattice vectors
@@ -24,7 +24,7 @@ class UnitCell:
 class Atom:
     """Class Atom: An atom in the sense of chemistry"""
 
-    def __init__(self, symbol: str, coords: list[float]):
+    def __init__(self, symbol: str, coords: list):
         # Atomic symbol according to the PSE
         self.symbol = symbol
         # Coordinates (x, y, z)
@@ -38,7 +38,7 @@ class Atom:
 class SimulationBox:
     """Class SimulationBox: Box of the simulation with atoms in an unit cell"""
 
-    def __init__(self, unit_cell: UnitCell, atoms: list[Atom]):
+    def __init__(self, unit_cell: UnitCell, atoms: list):
         # The Unit Cell
         self._unit_cell = unit_cell
         # List of all atoms

@@ -11,8 +11,9 @@ class Statistics:
         # Object to handle IO related issues
         self._io = InputOutput(sys.argv)
 
-        # Simulation box of the surface
+        # Simulation box of the surface and of the adsorbate
         self._surface = None
+        self._adsorbate = None
 
         # Array of booleans representing the occupation pattern
         self._occupation_pattern = None
@@ -40,9 +41,8 @@ class Statistics:
                   random_indeces.append(random_index)
                   break
 
-    def set_adsorbate() -> None:
+    def set_adsorbate(anchor_index: int) -> None:
         """Set an adsorbate onto the surface"""
-        pass
 
     def run(self) -> None:
         """Run the Statistics Simulation"""
@@ -52,9 +52,9 @@ class Statistics:
         # Process the command line arguments
         self._io.process_arguments()
 
-        # Read in the surface
+        # Read in the surface and the adsorbate
         self._surface = self._io.read_surface()
-        print(self._surface)
+        self._adsorbate = self._io.read_adsorbate()
         num_places = self._surface.get_num_atoms()
         num_adsorbed_places = self._io.get_num_adsorbed_places()
         print(f"Number of adsorbed places: {num_adsorbed_places}")
@@ -66,7 +66,6 @@ class Statistics:
         # num_adsorbed_places
         self._occupation_pattern = np.zeros(num_places, dtype=int)
         self.make_random_occupation(num_adsorbed_places)
-        print(self._occupation_pattern)
 
 def main() -> None:
     """Main function to drive everything"""
