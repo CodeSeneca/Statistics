@@ -20,6 +20,9 @@ class InputOutput:
         # Index of the anchor atom -> default: 0
         self._anchor_index = 0
 
+        # Offset of the adsorbate from the surface (in direct coordinates) -> default: 0.05
+        self._offset = 0.05
+
     @staticmethod
     def print_help() -> None:
         """Print a help message to the console"""
@@ -32,7 +35,8 @@ class InputOutput:
         print("--surface=[string]:          Filename of the clean surface,                                      default: POSCAR_surf")
         print("--adsorbate=[string]:        Filename of the adsorbate,                                          default: POSCAR_ads")
         print("--anchor_index=[int]:        Index of the atom with whom the adsorbate adsorbs onto the surface, default: 0")
-        print("--num_adsorbed_places=[int]: Number of adsorbed places:                                          default: 1\n")
+        print("--num_adsorbed_places=[int]: Number of adsorbed places:                                          default: 1")
+        print("--offset=[float]:            Distance of the adsorbate to the surface (in direct coordinates),   default: 0.05\n")
 
     @staticmethod
     def read_poscar(filename: str) -> SimulationBox:
@@ -136,6 +140,11 @@ class InputOutput:
 
         return self._anchor_index
 
+    def get_offset(self):
+        """Return the offset"""
+
+        return self._offset
+
     def process_arguments(self) -> None:
         """Process command line arguments"""
 
@@ -149,6 +158,8 @@ class InputOutput:
                 self._num_adsorbed_places = int(arg_split[1])
             elif arg_split[0] == "--anchor_index":
                 self._anchor_index = int(arg_split[1])
+            elif arg_split[0] == "--offset":
+                self._offset = float(arg_split[1])
 
     def read_surface(self) -> SimulationBox:
         """Read in the surface"""

@@ -1,2 +1,4 @@
+POSCAR
+CONTCAR
 *.pyc
 .venv/

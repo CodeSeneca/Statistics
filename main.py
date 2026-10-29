@@ -2,7 +2,9 @@
 
 import sys
 import numpy as np
+from data import Atom
 from input_output import InputOutput
+from monte_carlo import MonteCarlo
 
 class Statistics:
     """Class Statistics: Driver class to run the simulation"""
@@ -10,6 +12,16 @@ class Statistics:
     def __init__(self):
         # Object to handle IO related issues
         self._io = InputOutput(sys.argv)
+
+        # Object for the actual Monte Carlo Simulation
+        self._mc = MonteCarlo(path = "/home/bechtel/progs/MLIP_vib_benchmarking_project/MACE_models/mace-mh-1.model",
+                              head = "omol",
+                              dispersion = False,
+                              dtype = "float64",
+                              device = "cpu",
+                              cueq = False,
+                              fmax = 0.02
+                              )
 
         # Simulation box of the surface and of the adsorbate
         self._surface = None
@@ -41,15 +53,16 @@ class Statistics:
                   random_indeces.append(random_index)
                   break
 
-    def _set_adsorbate(self, anchor_index: int, place_index: int) -> None:
+    def _set_adsorbate(self, anchor_index: int, place_index: int, offset: float) -> None:
         """Set an adsorbate onto the surface"""
 
         # Anchor atom that links the adsorbate with the surface
         anchor_atom = self._adsorbate.get_atoms()[anchor_index]
         # Place on the surface where to adsorb to
         place_atom = self._surface.get_atoms()[place_index]
-        # Distance vector between anchor_atom and place_atom
-        dist_vector = anchor_atom.distance_vector_to(place_atom)
+        # Distance vector between anchor_atom and place_atom offsetted by offset
+        offset_vector = np.array([0.0, 0.0, offset])
+        dist_vector = anchor_atom.distance_vector_to(place_atom) + offset_vector
 
         # Shift all atoms within the adsorbate according to dist_vector
         # and add the shifted atoms to self._surface
@@ -76,7 +89,7 @@ class Statistics:
         print("------------------------------------")
         print(f"Total:                     {num_places}")
         print(f"Occupied fraction:         {occupied_fraction:.2f} %\n")
-        print(f"The adsorbate adsorbs via atom no. {self._io.get_anchor_index()}\n")
+        print(f"The adsorbate adsorbs via atom no. {self._io.get_anchor_index()} with an offset of {self._io.get_offset()} (in direct coordinates)\n")
 
         # Generate the random occupation pattern according to
         # num_adsorbed_places
@@ -87,10 +100,15 @@ class Statistics:
         print("Setting the adsorbates onto the surface ...\n")
         for i, occ in enumerate(self._occupation_pattern):
           if occ == 1:
-            self._set_adsorbate(anchor_index=self._io.get_anchor_index(), place_index=i)
+            self._set_adsorbate(anchor_index=self._io.get_anchor_index(), place_index=i, offset=self._io.get_offset())
 
         # Write the updated surface to a POSCAR file
         InputOutput.write_poscar(box=self._surface, filename="POSCAR")
+
+        # Initialize the Monte Carlo Simulation
+        self._mc.read_box("POSCAR")
+        self._mc.set_pes()
+        new_energy = self._mc.optimize()
 
 def main() -> None:
     """Main function to drive everything"""

@@ -53,6 +53,11 @@ class Atom:
 
         return shifted_atom
 
+    def run(self) -> None:
+        """Run the Statistics Simulation"""
+
+        # Print the help message to the 
+
     def __str__(self) -> str:
         """String representation of an Atom"""
 
