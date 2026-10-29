@@ -41,19 +41,21 @@ class Statistics:
                   random_indeces.append(random_index)
                   break
 
-    def set_adsorbate(self, anchor_index: int, place_index: int) -> None:
+    def _set_adsorbate(self, anchor_index: int, place_index: int) -> None:
         """Set an adsorbate onto the surface"""
 
         # Anchor atom that links the adsorbate with the surface
         anchor_atom = self._adsorbate.get_atoms()[anchor_index]
         # Place on the surface where to adsorb to
         place_atom = self._surface.get_atoms()[place_index]
-
         # Distance vector between anchor_atom and place_atom
         dist_vector = anchor_atom.distance_vector_to(place_atom)
-        # print(f"Distance between anchor_atom and place_atom: {dist}")
+
         # Shift all atoms within the adsorbate according to dist_vector
-        self._adsorbate.translate_atoms(dist_vector)
+        # and add the shifted atoms to self._surface
+        for atom in self._adsorbate.get_atoms():
+            shifted_atom = atom.translate(dist_vector)
+            self._surface.add_atom(shifted_atom)
 
     def run(self) -> None:
         """Run the Statistics Simulation"""
@@ -68,10 +70,12 @@ class Statistics:
         self._adsorbate = self._io.read_adsorbate()
         num_places = self._surface.get_num_atoms()
         num_adsorbed_places = self._io.get_num_adsorbed_places()
+        occupied_fraction = (num_adsorbed_places/num_places) * 100
         print(f"Number of adsorbed places: {num_adsorbed_places}")
         print(f"Number of free places:     {num_places - num_adsorbed_places}")
-        print("--------------------------------")
-        print(f"Total:                     {num_places}\n")
+        print("------------------------------------")
+        print(f"Total:                     {num_places}")
+        print(f"Occupied fraction:         {occupied_fraction:.2f} %\n")
         print(f"The adsorbate adsorbs via atom no. {self._io.get_anchor_index()}\n")
 
         # Generate the random occupation pattern according to
@@ -80,9 +84,13 @@ class Statistics:
         self._make_random_occupation(num_adsorbed_places)
 
         # Set the adsorbates onto the surface according to self._occupation_pattern
+        print("Setting the adsorbates onto the surface ...\n")
         for i, occ in enumerate(self._occupation_pattern):
           if occ == 1:
-            self.set_adsorbate(anchor_index=self._io.get_anchor_index(), place_index=i)
+            self._set_adsorbate(anchor_index=self._io.get_anchor_index(), place_index=i)
+
+        # Write the updated surface to a POSCAR file
+        InputOutput.write_poscar(box=self._surface, filename="POSCAR")
 
 def main() -> None:
     """Main function to drive everything"""

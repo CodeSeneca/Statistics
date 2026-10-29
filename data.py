@@ -3,7 +3,7 @@ import numpy as np
 class UnitCell:
     """Class UnitCell: The simulation box"""
 
-    def __init__(self, lattice_constant, a1: list, a2: list, a3: list):
+    def __init__(self, lattice_constant: float, a1: list, a2: list, a3: list):
         # Lattice constant
         self.lattice_constant = lattice_constant
         # Lattice vectors
@@ -11,7 +11,7 @@ class UnitCell:
         self.a2 = np.array(a2)
         self.a3 = np.array(a3)
 
-    def __str__(self):
+    def __str__(self) -> str:
         """String representation of the Unit Cell"""
 
         out_str = f"{self.lattice_constant}"
@@ -33,29 +33,27 @@ class Atom:
     def distance_vector_to(self, other) -> np.array:
         """Return the distance vector from this to another Atom"""
 
-        dist_vector = (self.coords[0] - other.coords[0])**2 + \
-                      (self.coords[1] - other.coords[1])**2 + \
-                      (self.coords[2] - other.coords[2])**2
+        dist_vector = other.coords - self.coords
 
         return dist_vector
 
     def distance_to(self, other) -> float:
         """Return the distance between this and another Atom"""
 
-        dist = (self.coords[0] - other.coords[0])**2 + \
-               (self.coords[1] - other.coords[1])**2 + \
-               (self.coords[2] - other.coords[2])**2
+        dist_vector = self.distance_vector_to(other)
+        dist = np.sqrt(dist_vector[0]**2 + dist_vector[1]**2 + dist_vector[2]**2)
 
-        dist = np.sqrt(dist)
+        return dist
 
-        return
+    def translate(self, vec: np.array):
+        """Shift the Atom according to vec and return the new Atom object"""
 
-    def translate(self, vec: np.array) -> None:
-        """Shift the Atom according to vec"""
+        new_coords = self.coords + vec
+        shifted_atom = Atom(symbol=self.symbol, coords=new_coords)
 
-        self.coords = self.coords + vec
+        return shifted_atom
 
-    def __str__(self):
+    def __str__(self) -> str:
         """String representation of an Atom"""
 
         return f"{self.symbol} {self.coords[0]} {self.coords[1]} {self.coords[2]}"
@@ -63,7 +61,7 @@ class Atom:
 class SimulationBox:
     """Class SimulationBox: Box of the simulation with atoms in an unit cell"""
 
-    def __init__(self, unit_cell: UnitCell, atoms: list):
+    def __init__(self, unit_cell: UnitCell, atoms: list, direct: bool):
         # The Unit Cell
         self._unit_cell = unit_cell
         # List of all atoms
@@ -71,29 +69,36 @@ class SimulationBox:
         # Total number of atoms, i.e., total number of free places to adsorb
         # on the surface
         self._num_atoms = len(self._atoms)
+        # Direct or cartesian coordinates
+        self._direct = direct
 
-    def get_unit_cell(self):
+    def get_unit_cell(self) -> UnitCell:
         """Return the unit cell"""
 
         return self._unit_cell
 
-    def get_atoms(self):
+    def get_atoms(self) -> list:
         """Return the list of all atoms"""
 
         return self._atoms
+
+    def is_direct(self) -> bool:
+        """Return whether we have direct coordinates or not"""
+
+        return self._direct
 
     def get_num_atoms(self) -> int:
         """Get the total number of atoms in the Simulation Box"""
 
         return self._num_atoms
 
-    def translate_atoms(self, vec):
-        """Shift all atoms according to vec"""
+    def add_atom(self, new_atom: Atom) -> None:
+        """Add a new atom to the Simulation Box"""
 
-        for atom in self._atoms:
-            atom.translate(vec)
+        self._atoms.append(new_atom)
+        self._num_atoms = len(self._atoms)
 
-    def __str__(self):
+    def __str__(self) -> str:
         """String representation of the Simulation Box"""
 
         out_str = "Simulation Box\n"
@@ -101,5 +106,7 @@ class SimulationBox:
         out_str += self._unit_cell.__str__()
         for atom in self._atoms:
             out_str += atom.__str__() + "\n"
+
+        out_str += f"\nTotal number of atoms: {self._num_atoms}\n"
 
         return out_str
