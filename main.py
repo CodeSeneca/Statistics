@@ -18,7 +18,7 @@ class Statistics:
         # Array of booleans representing the occupation pattern
         self._occupation_pattern = None
 
-    def make_random_occupation(self, num_adsorbed_places) -> None:
+    def _make_random_occupation(self, num_adsorbed_places) -> None:
         """Generate a random occupation pattern with num_adsorbed_places
         adsorbed places"""
 
@@ -41,8 +41,19 @@ class Statistics:
                   random_indeces.append(random_index)
                   break
 
-    def set_adsorbate(anchor_index: int) -> None:
+    def set_adsorbate(self, anchor_index: int, place_index: int) -> None:
         """Set an adsorbate onto the surface"""
+
+        # Anchor atom that links the adsorbate with the surface
+        anchor_atom = self._adsorbate.get_atoms()[anchor_index]
+        # Place on the surface where to adsorb to
+        place_atom = self._surface.get_atoms()[place_index]
+
+        # Distance vector between anchor_atom and place_atom
+        dist_vector = anchor_atom.distance_vector_to(place_atom)
+        # print(f"Distance between anchor_atom and place_atom: {dist}")
+        # Shift all atoms within the adsorbate according to dist_vector
+        self._adsorbate.translate_atoms(dist_vector)
 
     def run(self) -> None:
         """Run the Statistics Simulation"""
@@ -61,11 +72,17 @@ class Statistics:
         print(f"Number of free places:     {num_places - num_adsorbed_places}")
         print("--------------------------------")
         print(f"Total:                     {num_places}\n")
+        print(f"The adsorbate adsorbs via atom no. {self._io.get_anchor_index()}\n")
 
         # Generate the random occupation pattern according to
         # num_adsorbed_places
         self._occupation_pattern = np.zeros(num_places, dtype=int)
-        self.make_random_occupation(num_adsorbed_places)
+        self._make_random_occupation(num_adsorbed_places)
+
+        # Set the adsorbates onto the surface according to self._occupation_pattern
+        for i, occ in enumerate(self._occupation_pattern):
+          if occ == 1:
+            self.set_adsorbate(anchor_index=self._io.get_anchor_index(), place_index=i)
 
 def main() -> None:
     """Main function to drive everything"""

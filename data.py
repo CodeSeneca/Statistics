@@ -30,6 +30,31 @@ class Atom:
         # Coordinates (x, y, z)
         self.coords = np.array(coords)
 
+    def distance_vector_to(self, other) -> np.array:
+        """Return the distance vector from this to another Atom"""
+
+        dist_vector = (self.coords[0] - other.coords[0])**2 + \
+                      (self.coords[1] - other.coords[1])**2 + \
+                      (self.coords[2] - other.coords[2])**2
+
+        return dist_vector
+
+    def distance_to(self, other) -> float:
+        """Return the distance between this and another Atom"""
+
+        dist = (self.coords[0] - other.coords[0])**2 + \
+               (self.coords[1] - other.coords[1])**2 + \
+               (self.coords[2] - other.coords[2])**2
+
+        dist = np.sqrt(dist)
+
+        return
+
+    def translate(self, vec: np.array) -> None:
+        """Shift the Atom according to vec"""
+
+        self.coords = self.coords + vec
+
     def __str__(self):
         """String representation of an Atom"""
 
@@ -47,10 +72,26 @@ class SimulationBox:
         # on the surface
         self._num_atoms = len(self._atoms)
 
+    def get_unit_cell(self):
+        """Return the unit cell"""
+
+        return self._unit_cell
+
+    def get_atoms(self):
+        """Return the list of all atoms"""
+
+        return self._atoms
+
     def get_num_atoms(self) -> int:
         """Get the total number of atoms in the Simulation Box"""
 
         return self._num_atoms
+
+    def translate_atoms(self, vec):
+        """Shift all atoms according to vec"""
+
+        for atom in self._atoms:
+            atom.translate(vec)
 
     def __str__(self):
         """String representation of the Simulation Box"""

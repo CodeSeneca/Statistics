@@ -17,6 +17,9 @@ class InputOutput:
         # Number of adsorbed places -> default: 1
         self._num_adsorbed_places = 1
 
+        # Index of the anchor atom -> default: 0
+        self._anchor_index = 0
+
     @staticmethod
     def print_help() -> None:
         """Print a help message to the console"""
@@ -69,6 +72,11 @@ class InputOutput:
 
         return self._num_adsorbed_places
 
+    def get_anchor_index(self):
+        """Return the anchor index"""
+
+        return self._anchor_index
+
     def process_arguments(self) -> None:
         """Process command line arguments"""
 
@@ -80,6 +88,8 @@ class InputOutput:
                 self._adsorbate_filename = arg_split[1]
             elif arg_split[0] == "--num_adsorbed_places":
                 self._num_adsorbed_places = int(arg_split[1])
+            elif arg_split[0] == "--anchor_index":
+                self._anchor_index = int(arg_split[1])
 
     def read_surface(self) -> SimulationBox:
         """Read in the surface"""
