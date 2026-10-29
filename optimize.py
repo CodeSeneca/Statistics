@@ -41,7 +41,7 @@ class Optimize:
     def optimize(self) -> None:
         """Perform a geometry optimization for the current self._atoms object"""
 
-        self._dyn = BFGS(atoms=self._atoms)
+        self._dyn = BFGS(atoms=self._atoms, logfile=None, trajectory=None)
         self._dyn.run(fmax=self._fmax)
 
         write("CONTCAR", self._atoms, format="vasp")

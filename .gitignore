@@ -1,4 +1,5 @@
 POSCAR
 CONTCAR
 *.pyc
+*.log
 .venv/

@@ -7,8 +7,8 @@ from data import SimulationBox
 from input_output import InputOutput
 from optimize import Optimize
 
-class Statistics:
-    """Class Statistics: Driver class to run the simulation"""
+class MonteCarlo:
+    """Class MonteCarlo: Driver class to run the Monte Carlo Simulation"""
 
     def __init__(self):
         # Object to handle IO related issues
@@ -21,8 +21,7 @@ class Statistics:
                             dtype = "float64",
                             device = "cpu",
                             cueq = False,
-                            fmax = 0.02
-                            )
+                            fmax = 0.20)
 
         # Simulation box of the surface, of the adsorbate and the combined system
         self._surface = None
@@ -31,6 +30,12 @@ class Statistics:
 
         # Array of booleans representing the occupation pattern
         self._occupation_pattern = None
+
+        # Total number of Monte Carlo steps, default: 10
+        self._num_steps = 10
+
+        # Filename of the output file
+        self._out_filename = "mc.log"
 
     def _make_random_occupation(self, num_adsorbed_places) -> None:
         """Generate a random occupation pattern with num_adsorbed_places
@@ -55,6 +60,10 @@ class Statistics:
                   random_indeces.append(random_index)
                   break
 
+    def _place_jump(self) -> None:
+        """Let one adsorbate jump randomically by changing two places 0 and 1"""
+        pass
+
     def _set_adsorbate(self, anchor_index: int, place_index: int, offset: float) -> None:
         """Set an adsorbate onto the surface"""
 
@@ -78,6 +87,9 @@ class Statistics:
         # Reset self._combined_system to the clean surface
         self._combined_system = deepcopy(self._surface)
 
+        # Change the adsorption pattern in self._occupation_pattern
+        self._make_random_occupation(self._io.get_num_adsorbed_places())
+
         # Set the adsorbates onto the surface according to self._occupation_pattern
         for i, occ in enumerate(self._occupation_pattern):
           if occ == 1:
@@ -94,7 +106,14 @@ class Statistics:
         return energy
 
     def run(self) -> None:
-        """Run the Statistics Simulation"""
+        """Run the Monte Carlo Simulation"""
+
+        # Old and new energy within each Monte Carlo step
+        old_energy = None
+        new_energy = None
+        # Energy change within each Monte Carlo step between
+        # new_energy and old_energy
+        delta_energy = None
 
         # Print the help message to the console
         InputOutput.print_help()
@@ -119,13 +138,28 @@ class Statistics:
         self._occupation_pattern = np.zeros(num_places, dtype=int)
         self._make_random_occupation(num_adsorbed_places)
 
-        new_energy = self._mc_step()
+        # Perform self._num_steps Monte Carlo steps
+        print("Entering Monte Carlo loop ...\n")
+
+        with open(self._out_filename, 'w') as out_file:
+          old_energy = self._mc_step()
+          out_file.write(f"{0} {old_energy:15.10f}\n")
+          out_file.flush()
+
+          for i in range(1, self._num_steps):
+            new_energy = self._mc_step()
+            delta_energy = new_energy - old_energy
+
+            out_file.write(f"{i} {new_energy:15.10f} {delta_energy:15.10f}\n")
+            out_file.flush()
+
+            old_energy = new_energy
 
 def main() -> None:
     """Main function to drive everything"""
 
-    statistics = Statistics()
-    statistics.run()
+    mc = MonteCarlo()
+    mc.run()
 
 if __name__ == "__main__":
     main()
