@@ -2,8 +2,8 @@ from ase.io import read, write
 from ase.optimize import BFGS
 from mace.calculators import mace_mp
 
-class MonteCarlo:
-    """Class MonteCarlo: Class to perform geometry optimizations"""
+class Optimize:
+    """Class Optimize: Class to perform geometry optimizations"""
 
     def __init__(self, path, head, dispersion, dtype, device, cueq, fmax):
         # Atoms object for ASE

@@ -2,9 +2,10 @@
 
 import sys
 import numpy as np
-from data import Atom
+from copy import deepcopy
+from data import SimulationBox
 from input_output import InputOutput
-from monte_carlo import MonteCarlo
+from optimize import Optimize
 
 class Statistics:
     """Class Statistics: Driver class to run the simulation"""
@@ -14,18 +15,19 @@ class Statistics:
         self._io = InputOutput(sys.argv)
 
         # Object for the actual Monte Carlo Simulation
-        self._mc = MonteCarlo(path = "/home/bechtel/progs/MLIP_vib_benchmarking_project/MACE_models/mace-mh-1.model",
-                              head = "omol",
-                              dispersion = False,
-                              dtype = "float64",
-                              device = "cpu",
-                              cueq = False,
-                              fmax = 0.02
-                              )
+        self._opt = Optimize(path = "/home/bechtel/progs/MLIP_vib_benchmarking_project/MACE_models/mace-mh-1.model",
+                            head = "omol",
+                            dispersion = False,
+                            dtype = "float64",
+                            device = "cpu",
+                            cueq = False,
+                            fmax = 0.02
+                            )
 
-        # Simulation box of the surface and of the adsorbate
+        # Simulation box of the surface, of the adsorbate and the combined system
         self._surface = None
         self._adsorbate = None
+        self._combined_system = None
 
         # Array of booleans representing the occupation pattern
         self._occupation_pattern = None
@@ -68,7 +70,28 @@ class Statistics:
         # and add the shifted atoms to self._surface
         for atom in self._adsorbate.get_atoms():
             shifted_atom = atom.translate(dist_vector)
-            self._surface.add_atom(shifted_atom)
+            self._combined_system.add_atom(shifted_atom)
+
+    def _mc_step(self) -> float:
+        """Perform a Monte Carlo step and return the energy for it"""
+
+        # Reset self._combined_system to the clean surface
+        self._combined_system = deepcopy(self._surface)
+
+        # Set the adsorbates onto the surface according to self._occupation_pattern
+        for i, occ in enumerate(self._occupation_pattern):
+          if occ == 1:
+            self._set_adsorbate(anchor_index=self._io.get_anchor_index(), place_index=i, offset=self._io.get_offset())
+
+        # Write the updated surface to a POSCAR file
+        InputOutput.write_poscar(box=self._combined_system, filename="POSCAR")
+
+        # Perform a geometry optimization
+        self._opt.read_box("POSCAR")
+        self._opt.set_pes()
+        energy = self._opt.optimize()
+
+        return energy
 
     def run(self) -> None:
         """Run the Statistics Simulation"""
@@ -91,24 +114,12 @@ class Statistics:
         print(f"Occupied fraction:         {occupied_fraction:.2f} %\n")
         print(f"The adsorbate adsorbs via atom no. {self._io.get_anchor_index()} with an offset of {self._io.get_offset()} (in direct coordinates)\n")
 
-        # Generate the random occupation pattern according to
+        # Generate a random occupation pattern according to
         # num_adsorbed_places
         self._occupation_pattern = np.zeros(num_places, dtype=int)
         self._make_random_occupation(num_adsorbed_places)
 
-        # Set the adsorbates onto the surface according to self._occupation_pattern
-        print("Setting the adsorbates onto the surface ...\n")
-        for i, occ in enumerate(self._occupation_pattern):
-          if occ == 1:
-            self._set_adsorbate(anchor_index=self._io.get_anchor_index(), place_index=i, offset=self._io.get_offset())
-
-        # Write the updated surface to a POSCAR file
-        InputOutput.write_poscar(box=self._surface, filename="POSCAR")
-
-        # Initialize the Monte Carlo Simulation
-        self._mc.read_box("POSCAR")
-        self._mc.set_pes()
-        new_energy = self._mc.optimize()
+        new_energy = self._mc_step()
 
 def main() -> None:
     """Main function to drive everything"""
