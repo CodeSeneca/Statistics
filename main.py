@@ -4,11 +4,13 @@ import sys
 import random
 import numpy as np
 from copy import deepcopy
+
+from ase.data import atomic_numbers, covalent_radii
+from ase.geometry import get_distances
+
 from input_output import InputOutput
 from optimize import Optimize
 from data import Atom
-from ase.data import atomic_numbers, covalent_radii
-from ase.geometry import get_distances
 
 class MonteCarlo:
     """Class MonteCarlo: Driver class to run the Monte Carlo Simulation"""
@@ -28,7 +30,7 @@ class MonteCarlo:
         self._adsorbate = None
         self._combined_system = None
 
-        # Old nad new array of booleans representing the occupation pattern
+        # Old and new array of booleans representing the occupation pattern
         self._occ1 = None
         self._occ2 = None
 
@@ -38,12 +40,24 @@ class MonteCarlo:
         # Temperature of the simulation
         self._temperature = 293.15
 
+    @staticmethod
+    def _rotation_matrix(axis: np.ndarray, angle: float) -> np.ndarray:
+        """Rotation matrix for a rotation about a unit vector axis according to Rodrigues"""
+
+        ux, uy, uz = axis
+        cross = np.array([[0.0, -uz, uy],
+                          [uz, 0.0, -ux],
+                          [-uy, ux, 0.0]])
+        return (np.cos(angle) * np.eye(3)
+                + np.sin(angle) * cross
+                + (1.0 - np.cos(angle)) * np.outer(axis, axis))
+
     def _make_random_occupation(self, num_adsorbed_places) -> None:
         """Generate a random occupation pattern with num_adsorbed_places
         adsorbed places"""
 
         # Reset the occupation pattern
-        self._occ1[:] = 0
+        self._occ1 = np.zeros(self._surface.get_num_atoms(), dtype=int)
 
         # List of random indeces
         random_indeces = []
@@ -100,111 +114,20 @@ class MonteCarlo:
             shifted_atom = atom.translate(dist_vector)
             self._combined_system.add_atom(shifted_atom)
 
-    def _evaluate(self, occ_pattern: np.ndarray) -> float:
-        """Set the N adsorbates onto the surface according to occ_pattern
-        and calculate the optimized energy for it"""
-
-        # Reset self._combined_system to the clean surface
-        self._combined_system = deepcopy(self._surface)
-
-        # Set the adsorbates onto the surface according to self._occ1
-        for i, occ in enumerate(occ_pattern):
-          if occ == 1:
-            self._set_adsorbate_improved(anchor_index=self._io.get_anchor_index(), place_index=i, offset=self._io.get_offset())
-
-        # Write the updated surface to a POSCAR file
-        InputOutput.write_poscar(box=self._combined_system, filename="POSCAR")
-
-        # Perform a geometry optimization
-        self._opt.read_box("POSCAR")
-        self._opt.set_pes()
-        energy = self._opt.optimize(fmax=self._io.fmax)
-
-        return energy
-
-    def run(self) -> None:
-        """Run the Monte Carlo Simulation"""
-
-        # Old and new energy within each Monte Carlo step
-        old_energy = None
-        new_energy = None
-        # Energy change within each Monte Carlo step between
-        # new_energy and old_energy
-        delta_energy = None
-
-        # Print the help message to the console
-        InputOutput.print_help()
-        # Process the command line arguments
-        self._io.process_arguments()
-        print(self._io.path)
-        # Initialize the self._opt argument
-        self._opt = Optimize(path = self._io.path,
-                             head = self._io.head,
-                             dispersion = self._io.dispersion,
-                             dtype = self._io.dtype,
-                             device = self._io.device,
-                             cueq = self._io.cueq)
-
-        # Read in the surface and the adsorbate
-        self._surface = self._io.read_surface()
-        self._adsorbate = self._io.read_adsorbate()
-        num_places = self._surface.get_num_atoms()
-        num_adsorbed_places = self._io.get_num_adsorbed_places()
-        occupied_fraction = (num_adsorbed_places/num_places) * 100
-        print(f"Number of adsorbed places: {num_adsorbed_places}")
-        print(f"Number of free places:     {num_places - num_adsorbed_places}")
-        print("------------------------------------")
-        print(f"Total:                     {num_places}")
-        print(f"Occupied fraction:         {occupied_fraction:.2f} %\n")
-        print(f"The adsorbate adsorbs via atom no. {self._io.get_anchor_index()} with an offset of {self._io.get_offset()} (in direct coordinates)\n")
-
-        # Generate a random occupation pattern according to
-        # num_adsorbed_places
-        self._occ1 = np.zeros(num_places, dtype=int)
-        self._make_random_occupation(num_adsorbed_places)
-
-        # Perform self._num_steps Monte Carlo steps
-        print("Entering Monte Carlo loop ...\n")
-
-        with open(self._out_filename, 'w') as out_file:
-
-            old_energy = self._evaluate(self._occ1)
-            out_file.write(f"0    {old_energy:15.10f}\n")
-            out_file.flush()
-            
-            for i in range(1, self._io.num_steps):
-                self._place_jump()
-                new_energy = self._evaluate(self._occ2)
-                delta_energy = new_energy - old_energy
-
-                out_file.write(f"{i}    {new_energy:15.10f} {delta_energy:15.10f}")
-                out_file.flush()
-
-                # The Metropolis condition
-                if delta_energy <= 0 or random.random() < np.exp( -delta_energy/(MonteCarlo.kB * self._temperature) ):
-                    out_file.write("    accepted \n")
-                    self._occ1 = self._occ2.copy()
-                    old_energy = new_energy
-                else:
-                    out_file.write("    not accepted \n")
-
-    @staticmethod
-    def _rotation_matrix(axis: np.ndarray, angle: float) -> np.ndarray:
-        """Rotation matrix for a rotation about a unit vector axis (Rodrigues)"""
-
-        ux, uy, uz = axis
-        cross = np.array([[0.0, -uz, uy],
-                          [uz, 0.0, -ux],
-                          [-uy, ux, 0.0]])
-        return (np.cos(angle) * np.eye(3)
-                + np.sin(angle) * cross
-                + (1.0 - np.cos(angle)) * np.outer(axis, axis))
-
     def _set_adsorbate_improved(self, anchor_index: int, place_index: int,
-                       offset: float, n_angles: int = 72) -> None:
+                                offset: float, n_angles: int = 72) -> None:
         """Set an adsorbate onto the surface. The adsorbate is rotated about
         the surface normal (through the anchor atom) and the orientation with
         the smallest overlap with all atoms already present is chosen.
+
+        Each orientation is ranked by the score function
+
+        sum( (dist/d_ref)**(-12) )
+
+        with dist = the distance between each pair of atoms i,j
+             dref = the reference distance being the sum of covalence radii for i,j
+             **(-12) being inspired by the repulsive term in the Lennard-Jones potential
+
         Assumes: surface and adsorbate share the same unit cell, both Direct."""
 
         # Cell matrix of the clean surface and the adsorbate
@@ -260,6 +183,92 @@ class MonteCarlo:
         for atom, coords in zip(ads_atoms, new_frac):
             self._combined_system.add_atom(Atom(symbol=atom.symbol, coords=coords))
 
+
+    def _evaluate(self, occ_pattern: np.ndarray) -> float:
+        """Set the N adsorbates onto the surface according to occ_pattern
+        and calculate the optimized energy for it"""
+
+        # Reset self._combined_system to the clean surface
+        self._combined_system = deepcopy(self._surface)
+
+        # Set the adsorbates onto the surface according to self._occ1
+        for i, occ in enumerate(occ_pattern):
+          if occ == 1:
+            self._set_adsorbate_improved(anchor_index=self._io.get_anchor_index(), place_index=i, offset=self._io.get_offset())
+
+        # Write the updated surface to a POSCAR file
+        InputOutput.write_poscar(box=self._combined_system, filename="POSCAR")
+
+        # Perform a geometry optimization
+        self._opt.read_box("POSCAR")
+        self._opt.set_pes()
+        energy = self._opt.optimize(fmax=self._io.fmax)
+
+        return energy
+
+    def run(self) -> None:
+        """Run the Monte Carlo Simulation"""
+
+        # Old and new energy within each Monte Carlo step
+        old_energy = None
+        new_energy = None
+        # Energy change within each Monte Carlo step between
+        # new_energy and old_energy
+        delta_energy = None
+
+        # Print the help message to the console
+        InputOutput.print_help()
+        # Process the command line arguments
+        self._io.process_arguments()
+        # Initialize the self._opt argument
+        self._opt = Optimize(path = self._io.path,
+                             head = self._io.head,
+                             dispersion = self._io.dispersion,
+                             dtype = self._io.dtype,
+                             device = self._io.device,
+                             cueq = self._io.cueq)
+
+        # Read in the surface and the adsorbate
+        self._surface = self._io.read_surface()
+        self._adsorbate = self._io.read_adsorbate()
+        num_places = self._surface.get_num_atoms()
+        num_adsorbed_places = self._io.get_num_adsorbed_places()
+        occupied_fraction = (num_adsorbed_places/num_places) * 100
+        print(f"Number of adsorbed places: {num_adsorbed_places}")
+        print(f"Number of free places:     {num_places - num_adsorbed_places}")
+        print("------------------------------------")
+        print(f"Total:                     {num_places}")
+        print(f"Occupied fraction:         {occupied_fraction:.2f} %\n")
+        print(f"The adsorbate adsorbs via atom no. {self._io.get_anchor_index()} with an offset of {self._io.get_offset()} (in direct coordinates)\n")
+
+        # Generate a random occupation pattern according to
+        # num_adsorbed_places
+        self._make_random_occupation(num_adsorbed_places)
+
+        # Perform self._num_steps Monte Carlo steps
+        print("Entering Monte Carlo loop ...\n")
+
+        with open(self._out_filename, 'w') as out_file:
+
+            old_energy = self._evaluate(self._occ1)
+            out_file.write(f"0    {old_energy:15.10f}\n")
+            out_file.flush()
+            
+            for i in range(1, self._io.num_steps):
+                self._place_jump()
+                new_energy = self._evaluate(self._occ2)
+                delta_energy = new_energy - old_energy
+
+                out_file.write(f"{i}    {new_energy:15.10f} {delta_energy:15.10f}")
+                out_file.flush()
+
+                # The Metropolis condition
+                if delta_energy <= 0 or random.random() < np.exp( -delta_energy/(MonteCarlo.kB * self._temperature) ):
+                    out_file.write("    accepted \n")
+                    self._occ1 = self._occ2.copy()
+                    old_energy = new_energy
+                else:
+                    out_file.write("    not accepted \n")
 def main() -> None:
     """Main function to drive everything"""
 

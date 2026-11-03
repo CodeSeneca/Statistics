@@ -1,3 +1,4 @@
+import sys
 from data import UnitCell, Atom, SimulationBox
 
 class InputOutput:
@@ -63,7 +64,7 @@ class InputOutput:
         print("--device=[cuda or cpu]                                                                                                  default: cpu")
         print("--cueq:                        Activate the cuEquivariance acceleration, only possible for --device=cuda,               default: not activated")
         print("--fmax=[float]:                Convergence criterion for the geometry optimizations,                                    default: 0.02")
-        print("--num_steps=[int]:             Total number of Monte Carlo steps from 0 to num_steps:                                   default: 10")
+        print("--num_steps=[int]:             Total number of Monte Carlo steps from 0 to num_steps:                                   default: 10\n")
 
     @staticmethod
     def read_poscar(filename: str) -> SimulationBox:
@@ -207,13 +208,24 @@ class InputOutput:
     def read_surface(self) -> SimulationBox:
         """Read in the surface"""
 
-        print(f"Reading in the clean surface from {self._surface_filename} ...")
-        box = InputOutput.read_poscar(self._surface_filename)
+        print(f"\nReading in the clean surface from {self._surface_filename} ...")
+        try:
+          box = InputOutput.read_poscar(self._surface_filename)
+        except FileNotFoundError:
+          print(f"The POSCAR file for the clean surface could not been found.\n")
+          sys.exit(-1)
+
         return box
 
     def read_adsorbate(self) -> SimulationBox:
         """Read in the adsorbate"""
 
         print(f"Reading in the adsorbate from {self._adsorbate_filename} ...\n")
-        box = InputOutput.read_poscar(self._adsorbate_filename)
+        try:
+          box = InputOutput.read_poscar(self._adsorbate_filename)
+        except FileNotFoundError:
+          print(f"The POSCAR file for the adsorbate could not been found.\n")
+          sys.exit(-1)
+
         return box
+
