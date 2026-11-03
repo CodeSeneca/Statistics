@@ -23,6 +23,25 @@ class InputOutput:
         # Offset of the adsorbate from the surface (in direct coordinates) -> default: 0.05
         self._offset = 0.05
 
+        # Path to the MACE model used within all calculations
+        self.path = None
+        # Head of the MACE model
+        self.head = "omol"
+        # If the D3 dispersion correction should be added via torch-dftd
+        self.dispersion = False
+        # Float type
+        self.dtype = "float64"
+        # Cuda or CPU
+        self.device = "cpu"
+        # Whether the CuEq acceleration should be used
+        self.cueq = False
+
+        # Convergence criterion for the geometry optimizations, default: 0.02
+        self.fmax = 0.02
+
+        # Total number of Monte Carlo steps, default: 10
+        self.num_steps = 10
+
     @staticmethod
     def print_help() -> None:
         """Print a help message to the console"""
@@ -32,11 +51,19 @@ class InputOutput:
         print("Author: Maximilian Bechtel, <maxi.bechtel@fau.de>")
         print("Lehrstuhl fuer Theoretische Chemie, Friedrich-Alexander-Universitaet Erlangen-Nuernberg\n")
         print("Usage: python main.py [options]\n")
-        print("--surface=[string]:          Filename of the clean surface,                                      default: POSCAR_surf")
-        print("--adsorbate=[string]:        Filename of the adsorbate,                                          default: POSCAR_ads")
-        print("--anchor_index=[int]:        Index of the atom with whom the adsorbate adsorbs onto the surface, default: 0")
-        print("--num_adsorbed_places=[int]: Number of adsorbed places:                                          default: 1")
-        print("--offset=[float]:            Distance of the adsorbate to the surface (in direct coordinates),   default: 0.05\n")
+        print("--surface=[string]:            Filename of the clean surface,                                                           default: POSCAR_surf")
+        print("--adsorbate=[string]:          Filename of the adsorbate,                                                               default: POSCAR_ads")
+        print("--anchor_index=[int]:          Index of the atom with whom the adsorbate adsorbs onto the surface,                      default: 0")
+        print("--num_adsorbed_places=[int]:   Number of adsorbed places:                                                               default: 1")
+        print("--offset=[float]:              Distance of the adsorbate to the surface (in direct coordinates),                        default: 0.05")
+        print("--path=[String]:               Path to the MACE model")
+        print("--head=[String]:               Head of the MACE model for the MH-1 model,                                               default: omol")
+        print("--dispersion=:                 Add a dispersion correction to the MACE energy,                                          default: not activated")
+        print("--dtype=[float32 or float64]:  Float64 is slower but more accurate,                                                     default: float64")
+        print("--device=[cuda or cpu]                                                                                                  default: cpu")
+        print("--cueq:                        Activate the cuEquivariance acceleration, only possible for --device=cuda,               default: not activated")
+        print("--fmax=[float]:                Convergence criterion for the geometry optimizations,                                    default: 0.02")
+        print("--num_steps=[int]:             Total number of Monte Carlo steps from 0 to num_steps:                                   default: 10")
 
     @staticmethod
     def read_poscar(filename: str) -> SimulationBox:
@@ -160,6 +187,22 @@ class InputOutput:
                 self._anchor_index = int(arg_split[1])
             elif arg_split[0] == "--offset":
                 self._offset = float(arg_split[1])
+            elif arg_split[0] == "--path":
+                self.path = arg_split[1]
+            elif arg_split[0] == "--head":
+                self.head = arg_split[1]
+            elif arg_split[0] == "--dispersion":
+                self.dispersion = True
+            elif arg_split[0] == "--dtype":
+                self.dtype = arg_split[1]
+            elif arg_split[0] == "--device":
+                self.device = arg_split[1]
+            elif arg_split[0] == "--cueq":
+                self.cueq = True
+            elif arg_split[0] == "--fmax":
+                self.fmax = float(arg_split[1])
+            elif arg_split[0] == "--num_steps":
+                self.num_steps = int(arg_split[1])
 
     def read_surface(self) -> SimulationBox:
         """Read in the surface"""
