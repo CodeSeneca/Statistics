@@ -6,6 +6,9 @@ import numpy as np
 from copy import deepcopy
 from input_output import InputOutput
 from optimize import Optimize
+from data import Atom
+from ase.data import atomic_numbers, covalent_radii
+from ase.geometry import get_distances
 
 class MonteCarlo:
     """Class MonteCarlo: Driver class to run the Monte Carlo Simulation"""
@@ -107,7 +110,7 @@ class MonteCarlo:
         # Set the adsorbates onto the surface according to self._occ1
         for i, occ in enumerate(occ_pattern):
           if occ == 1:
-            self._set_adsorbate(anchor_index=self._io.get_anchor_index(), place_index=i, offset=self._io.get_offset())
+            self._set_adsorbate_improved(anchor_index=self._io.get_anchor_index(), place_index=i, offset=self._io.get_offset())
 
         # Write the updated surface to a POSCAR file
         InputOutput.write_poscar(box=self._combined_system, filename="POSCAR")
@@ -184,6 +187,78 @@ class MonteCarlo:
                     old_energy = new_energy
                 else:
                     out_file.write("    not accepted \n")
+
+    @staticmethod
+    def _rotation_matrix(axis: np.ndarray, angle: float) -> np.ndarray:
+        """Rotation matrix for a rotation about a unit vector axis (Rodrigues)"""
+
+        ux, uy, uz = axis
+        cross = np.array([[0.0, -uz, uy],
+                          [uz, 0.0, -ux],
+                          [-uy, ux, 0.0]])
+        return (np.cos(angle) * np.eye(3)
+                + np.sin(angle) * cross
+                + (1.0 - np.cos(angle)) * np.outer(axis, axis))
+
+    def _set_adsorbate_improved(self, anchor_index: int, place_index: int,
+                       offset: float, n_angles: int = 72) -> None:
+        """Set an adsorbate onto the surface. The adsorbate is rotated about
+        the surface normal (through the anchor atom) and the orientation with
+        the smallest overlap with all atoms already present is chosen.
+        Assumes: surface and adsorbate share the same unit cell, both Direct."""
+
+        # Cell matrix of the clean surface and the adsorbate
+        cell = self._surface.get_cell_matrix()
+        cell_inv = np.linalg.inv(cell)
+
+        ads_atoms = self._adsorbate.get_atoms()
+        site = self._surface.get_atoms()[place_index]
+
+        # Anchor position in direct coordinates (offset along a3)
+        anchor_frac = site.coords + np.array([0.0, 0.0, offset])
+        anchor_pos = anchor_frac @ cell
+
+        # Adsorbate atoms relative to the anchor, in cartesian coordinates
+        ads_frac = np.array([a.coords for a in ads_atoms])
+        rel = (ads_frac - ads_frac[anchor_index]) @ cell
+        # Covalence radii of all adsorbate atoms
+        ads_rc = covalent_radii[[atomic_numbers[atom.symbol] for atom in ads_atoms]]
+
+        # All atoms already there: surface + previously set adsorbates
+        present = self._combined_system.get_atoms()
+        present_pos = np.array([a.coords for a in present]) @ cell
+        present_rc = covalent_radii[[atomic_numbers[a.symbol] for a in present]]
+
+        # Atoms that move under the rotation (everything but the anchor)
+        moving = np.array([i for i in range(len(ads_atoms)) if i != anchor_index])
+
+        # Skip the following rotation algorithm if the adsorbate consists only of the anchor atom
+        best_rel = rel  # Best orientation so far
+        if len(moving) > 0:
+            # Calculate the surface normal for the surface a1 x a2 and normalize it
+            normal = np.cross(cell[0], cell[1])
+            normal /= np.linalg.norm(normal)
+
+            # Reference distances for all pairs (moving atom, present atom)
+            d_ref = ads_rc[moving][:, None] + present_rc[None, :]
+
+            # Best score to be updated within each iteration
+            best_score = np.inf
+
+            # Try out every rotation angle in [0°, 360°( in distances of 360°/72 = 5°
+            for angle in np.linspace(0.0, 2.0 * np.pi, n_angles, endpoint=False):
+                trial = rel @ self._rotation_matrix(normal, angle).T
+                _, dist = get_distances(anchor_pos + trial[moving], present_pos,
+                                        cell=cell, pbc=True)
+                score = np.sum((dist / d_ref) ** -12)
+                if score < best_score:
+                    best_score = score
+                    best_rel = trial
+
+        # Back to direct coordinates: anchor stays exactly where it was
+        new_frac = anchor_frac + best_rel @ cell_inv
+        for atom, coords in zip(ads_atoms, new_frac):
+            self._combined_system.add_atom(Atom(symbol=atom.symbol, coords=coords))
 
 def main() -> None:
     """Main function to drive everything"""

@@ -97,6 +97,13 @@ class SimulationBox:
 
         return self._num_atoms
 
+    def get_cell_matrix(self) -> np.ndarray:
+        """Return the unit cell vectors a1, a2, a3 as a matrix"""
+
+        cell_matrix = self._unit_cell.lattice_constant * np.array( [self._unit_cell.a1, self._unit_cell.a2, self._unit_cell.a3] )
+
+        return cell_matrix
+
     def add_atom(self, new_atom: Atom) -> None:
         """Add a new atom to the Simulation Box"""
 
