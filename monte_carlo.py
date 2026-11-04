@@ -337,10 +337,10 @@ class MonteCarlo:
 
                 # The Metropolis condition
                 if delta_energy <= 0 or random.random() < np.exp( -delta_energy/(MonteCarlo.kB * self._io.temp) ):
-                    out_file.write(f"{i}    {new_energy:15.10f} {delta_energy:15.10f} {dist_min_start:5.2f} accepted\n")
-                    out_file.flush()
                     self._occ1 = self._occ2.copy()
                     old_energy = new_energy
+                    out_file.write(f"{i}    {new_energy:15.10f} {delta_energy:15.10f} {old_energy:15.10f} {dist_min_start:5.2f} accepted\n")
+                    out_file.flush()
                 else:
-                    out_file.write(f"{i}    {new_energy:15.10f} {delta_energy:15.10f} {dist_min_start:5.2f} not accepted\n")
+                    out_file.write(f"{i}    {new_energy:15.10f} {delta_energy:15.10f} {old_energy:15.10f} {dist_min_start:5.2f} not accepted\n")
                     out_file.flush()

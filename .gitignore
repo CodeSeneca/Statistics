@@ -5,4 +5,5 @@ XDATCAR
 *.pyc
 *.log
 *.sh
+*.out
 .venv/
