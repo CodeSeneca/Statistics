@@ -1,5 +1,7 @@
 POSCAR
 CONTCAR
+XDATCAR
+*.xyz
 *.pyc
 *.log
 *.sh

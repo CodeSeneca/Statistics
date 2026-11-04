@@ -1,3 +1,4 @@
+import os
 from ase.io import read, write
 from ase.optimize import BFGS
 from mace.calculators import mace_mp
@@ -6,6 +7,10 @@ class Optimize:
     """Class Optimize: Class to perform geometry optimizations"""
 
     def __init__(self, path, head, dispersion, dtype, device, cueq):
+        # Delete an old XDATCAR file
+        if os.path.exists("XDATCAR"):
+            os.remove("XDATCAR")
+
         # Atoms object for ASE
         self._atoms = None
 
@@ -32,6 +37,7 @@ class Optimize:
         self._dyn.run(fmax=fmax)
 
         write("CONTCAR", self._atoms, format="vasp")
+        write("XDATCAR", self._atoms, format="vasp-xdatcar", append=True)
         min_energy = self._atoms.get_potential_energy()
 
         return min_energy

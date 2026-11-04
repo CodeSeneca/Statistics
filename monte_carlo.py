@@ -37,9 +37,6 @@ class MonteCarlo:
         # Filename of the output file
         self._out_filename = "mc.log"
 
-        # Temperature of the simulation
-        self._temperature = 293.15
-
     @staticmethod
     def _rotation_matrix(axis: np.ndarray, angle: float) -> np.ndarray:
         """Rotation matrix for a rotation about a unit vector axis according to Rodrigues"""
@@ -114,11 +111,11 @@ class MonteCarlo:
             shifted_atom = atom.translate(dist_vector)
             self._combined_system.add_atom(shifted_atom)
 
-    def _set_adsorbate(self, anchor_index: int, place_index: int,
-                       offset: float, n_angles: int = 72,
-                       tilt_max: float = 90.0, n_tilts: int = 7,
-                       n_spin: int = 1, x_ok: float = 0.9,
-                       z_tol: float = 0.5) -> float:
+    def _set_adsorbate_improved(self, anchor_index: int, place_index: int,
+                       offset: float, n_angles: int,
+                       tilt_max: float, n_tilts,
+                       n_spin, x_ok,
+                       z_tol) -> float:
 
         """Set an adsorbate onto the surface. The adsorbate is rotated about
         the surface normal (through the anchor atom) and the orientation with
@@ -159,8 +156,11 @@ class MonteCarlo:
         # Atoms that move under the rotation (everything but the anchor)
         moving = np.array([i for i in range(len(ads_atoms)) if i != anchor_index])
         
-        # Skip the following rotation algorithm if the adsorbate consists only of the anchor atom
+
+        n_surf = self._surface.get_num_atoms()
+        best_xmin = np.inf
         best_rel = rel
+
         if len(moving) > 0:
             # Surface normal
             normal = np.cross(cell[0], cell[1])
@@ -212,26 +212,34 @@ class MonteCarlo:
                         if score < tilt_score:
                             tilt_score = score
                             tilt_rel = trial
-                            tilt_xmin = ratio.min()
+
+                            # Consider only the contacts to other adsorbates and not to the surface
+                            ratio_ads = ratio[:, n_surf:]
+                            tilt_xmin = ratio_ads.min() if ratio_ads.size > 0 else np.inf
 
                 if tilt_rel is None:
                     continue
 
+                print(f"place {place_index}: tilt={np.degrees(tilt):5.1f}°  "
+                      f"min ratio (ads-ads)={tilt_xmin:.2f}  score={tilt_score:.3g}")
+
                 # Smallest tilt without any close contact: take it and stop
                 if tilt_xmin >= x_ok:
                     best_rel = tilt_rel
+                    best_xmin = tilt_xmin
                     break
 
                 if tilt_score < best_score:
                     best_score = tilt_score
                     best_rel = tilt_rel
+                    best_xmin = tilt_xmin
 
         # Back to direct coordinates (unverändert)
         new_frac = anchor_frac + best_rel @ cell_inv
         for atom, coords in zip(ads_atoms, new_frac):
             self._combined_system.add_atom(Atom(symbol=atom.symbol, coords=coords))
 
-        return tilt_xmin
+        return best_xmin
 
     def _evaluate(self, occ_pattern: np.ndarray) -> float:
         """Set the N adsorbates onto the surface according to occ_pattern
@@ -243,7 +251,15 @@ class MonteCarlo:
         # Set the adsorbates onto the surface according to self._occ1
         for i, occ in enumerate(occ_pattern):
           if occ == 1:
-            min_dist = self._set_adsorbate_improved(anchor_index=self._io.get_anchor_index(), place_index=i, offset=self._io.get_offset())
+            min_dist = self._set_adsorbate_improved(
+                anchor_index=self._io.get_anchor_index(),
+                place_index=i, offset=self._io.get_offset(),
+                n_tilts=self._io.num_tilt_angles,
+                tilt_max=self._io.max_tilt_angle,
+                n_angles=self._io.num_azimuth_angles,
+                n_spin=self._io.num_spin_angles,
+                x_ok=self._io.min_dist_break,
+                z_tol=self._io.z_tol)
 
         # Write the updated surface to a POSCAR file
         InputOutput.write_poscar(box=self._combined_system, filename="POSCAR")
@@ -253,7 +269,7 @@ class MonteCarlo:
         self._opt.set_pes()
         energy = self._opt.optimize(fmax=self._io.fmax)
 
-        return energy
+        return energy, min_dist
 
     def run(self) -> None:
         """Run the Monte Carlo Simulation"""
@@ -295,26 +311,36 @@ class MonteCarlo:
         self._make_random_occupation(num_adsorbed_places)
 
         # Perform self._num_steps Monte Carlo steps
-        print("Entering Monte Carlo loop ...\n")
+        print("Entering Monte Carlo loop ...")
+        print("-------------------------------------------")
+        print(f"Temperature: {self._io.temp} K")
+        print(f"Total number of MC steps: {self._io.num_steps}\n")
 
         with open(self._out_filename, 'w') as out_file:
 
-            old_energy = self._evaluate(self._occ1)
+            print("Step no. 0")
+            print("----------------------------------------------")
+            print("Setting the adsorbates onto the clean surface ...")
+            old_energy, dist_min_start = self._evaluate(self._occ1)
             out_file.write(f"0    {old_energy:15.10f}\n")
             out_file.flush()
+            print("----------------------------------------------")
             
             for i in range(1, self._io.num_steps):
+                print(f"Step no. {i}")
                 self._place_jump()
-                new_energy = self._evaluate(self._occ2)
+                print("----------------------------------------------")
+                print("Setting the adsorbates onto the clean surface ...")
+                new_energy, dist_min_start = self._evaluate(self._occ2)
                 delta_energy = new_energy - old_energy
-
-                out_file.write(f"{i}    {new_energy:15.10f} {delta_energy:15.10f}")
-                out_file.flush()
+                print("----------------------------------------------\n")
 
                 # The Metropolis condition
-                if delta_energy <= 0 or random.random() < np.exp( -delta_energy/(MonteCarlo.kB * self._temperature) ):
-                    out_file.write("    accepted \n")
+                if delta_energy <= 0 or random.random() < np.exp( -delta_energy/(MonteCarlo.kB * self._io.temp) ):
+                    out_file.write(f"{i}    {new_energy:15.10f} {delta_energy:15.10f} {dist_min_start:5.2f} accepted\n")
+                    out_file.flush()
                     self._occ1 = self._occ2.copy()
                     old_energy = new_energy
                 else:
-                    out_file.write("    not accepted \n")
+                    out_file.write(f"{i}    {new_energy:15.10f} {delta_energy:15.10f} {dist_min_start:5.2f} not accepted\n")
+                    out_file.flush()

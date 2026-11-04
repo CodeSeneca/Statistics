@@ -37,11 +37,32 @@ class InputOutput:
         # Whether the CuEq acceleration should be used
         self.cueq = False
 
+        # Total number of tilt angles
+        self.num_tilt_angles = 7
+
+        # The maximum tilt angle to be tested, default: 90
+        self.max_tilt_angle = 90
+
+        # Total number of azimuth angles, default: 72
+        self.num_azimuth_angles = 72
+
+        # Total number of spin angles around the molecule's axis, default: 16
+        self.num_spin_angles = 16
+
+        # Minimum distance of two adsorbates to break the placement search, default: 1.4
+        self.min_dist_break = 1.4
+
+        # Tolerance value beyond all adsorbate atoms should not fall
+        self.z_tol = 1.30
+
         # Convergence criterion for the geometry optimizations, default: 0.02
         self.fmax = 0.02
 
         # Total number of Monte Carlo steps, default: 10
         self.num_steps = 10
+
+        # Temperature of the Monte Carlo Simulation in K, default: 293.15 K (room temperature)
+        self.temp = 293.15
 
     @staticmethod
     def print_help() -> None:
@@ -52,19 +73,26 @@ class InputOutput:
         print("Author: Maximilian Bechtel, <maxi.bechtel@fau.de>")
         print("Lehrstuhl fuer Theoretische Chemie, Friedrich-Alexander-Universitaet Erlangen-Nuernberg\n")
         print("Usage: python main.py [options]\n")
-        print("--surface=[string]:            Filename of the clean surface,                                                           default: POSCAR_surf")
-        print("--adsorbate=[string]:          Filename of the adsorbate,                                                               default: POSCAR_ads")
-        print("--anchor_index=[int]:          Index of the atom with whom the adsorbate adsorbs onto the surface,                      default: 0")
-        print("--num_adsorbed_places=[int]:   Number of adsorbed places:                                                               default: 1")
-        print("--offset=[float]:              Distance of the adsorbate to the surface (in direct coordinates),                        default: 0.05")
-        print("--path=[String]:               Path to the MACE model")
-        print("--head=[String]:               Head of the MACE model for the MH-1 model,                                               default: omol")
-        print("--dispersion=:                 Add a dispersion correction to the MACE energy,                                          default: not activated")
-        print("--dtype=[float32 or float64]:  Float64 is slower but more accurate,                                                     default: float64")
+        print("--surface=[string]             Filename of the clean surface,                                                           default: POSCAR_surf")
+        print("--adsorbate=[string]           Filename of the adsorbate,                                                               default: POSCAR_ads")
+        print("--anchor_index=[int]           Index of the atom with whom the adsorbate adsorbs onto the surface,                      default: 0")
+        print("--num_adsorbed_places=[int]    Number of adsorbed places:                                                               default: 1")
+        print("--offset=[float]               Distance of the adsorbate to the surface (in direct coordinates),                        default: 0.05")
+        print("--path=[String]                Path to the MACE model")
+        print("--head=[String]                Head of the MACE model for the MH-1 model,                                               default: omol")
+        print("--dispersion                   Add a dispersion correction to the MACE energy,                                          default: not activated")
+        print("--dtype=[float32 or float64]   Float64 is slower but more accurate,                                                     default: float64")
         print("--device=[cuda or cpu]                                                                                                  default: cpu")
-        print("--cueq:                        Activate the cuEquivariance acceleration, only possible for --device=cuda,               default: not activated")
-        print("--fmax=[float]:                Convergence criterion for the geometry optimizations,                                    default: 0.02")
-        print("--num_steps=[int]:             Total number of Monte Carlo steps from 0 to num_steps:                                   default: 10\n")
+        print("--cueq                         Activate the cuEquivariance acceleration, only possible for --device=cuda,               default: not activated")
+        print("--num_tilt_angles=[int]        Total number of tilt angles within the placement algoritm,                               default: 7")
+        print("--max_tilt_angle=[float]       Tilt angles are tested within [0, max_tilt_angle]                                        default: 90°")
+        print("--num_azimuth_angles=[int]     Total number of azimuth angles within the placement algorithm,                           default: 72")
+        print("--num_spin_angles=[int]        Total number of spin angles around the molecule's axis within the placement algorithm,   default: 16")
+        print("--min_dist_break=[float]:      Minimum distance between two adsorbate atoms to break the placement search (in Å),       default: 1.40 Å")
+        print("--z_tol=[float]:               Tolerance value beyond all adsorbate atoms should not fall, w.r.t to the anchor atom,    default: 1.30 Å")
+        print("--fmax=[float]                 Convergence criterion for the geometry optimizations,                                    default: 0.02")
+        print("--num_steps=[int]              Total number of Monte Carlo steps from 0 to num_steps,                                   default: 10")
+        print("--temperature=[float]          Temperature of the Monte Carlo Simulation for the Boltzmann factor (in K)                default: 293.15 K\n")
 
     @staticmethod
     def read_poscar(filename: str) -> SimulationBox:
@@ -204,6 +232,20 @@ class InputOutput:
                 self.fmax = float(arg_split[1])
             elif arg_split[0] == "--num_steps":
                 self.num_steps = int(arg_split[1])
+            elif arg_split[0] == "--temperature":
+                self.temp = float(arg_split[1])
+            elif arg_split[0] == "--num_tilt_angles":
+                self.num_tilt_angles = int(arg_split[1])
+            elif arg_split[0] == "--max_tilt_angle":
+                self.max_tilt_angle = float(arg_split[1])
+            elif arg_split[0] == "--num_azimuth_angles":
+                self.num_azimuth_angles = int(arg_split[1])
+            elif arg_split[0] == "--num_spin_agnles":
+                self.num_spin_angles = int(arg_split[1])
+            elif arg_split[0] == "--min_dist_break":
+                self.min_dist_break = float(arg_split[1])
+            elif arg_split[0] == "--z_tol":
+                self.z_tol = float(arg_split[1])
 
     def read_surface(self) -> SimulationBox:
         """Read in the surface"""
