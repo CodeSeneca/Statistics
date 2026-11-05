@@ -1,6 +1,6 @@
 POSCAR
 CONTCAR
-XDATCAR
+XDATCAR*
 *.xyz
 *.pyc
 *.log

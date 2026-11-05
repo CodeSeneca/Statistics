@@ -49,17 +49,17 @@ class InputOutput:
         # Total number of spin angles around the molecule's axis, default: 16
         self.num_spin_angles = 16
 
-        # Minimum distance of two adsorbates to break the placement search, default: 1.4
-        self.min_dist_break = 1.4
+        # Minimum distance of two adsorbates to break the placement search, default: 1.40
+        self.min_dist_break = 1.40
 
-        # Tolerance value beyond all adsorbate atoms should not fall
+        # Tolerance value beyond all adsorbate atoms should not fall, default: 1.30
         self.z_tol = 1.30
 
         # Convergence criterion for the geometry optimizations, default: 0.02
         self.fmax = 0.02
 
-        # Total number of Monte Carlo steps, default: 10
-        self.num_steps = 10
+        # Total number of Monte Carlo steps, default: 1
+        self.num_steps = 1
 
         # Temperature of the Monte Carlo Simulation in K, default: 293.15 K (room temperature)
         self.temp = 293.15
@@ -91,7 +91,7 @@ class InputOutput:
         print("--min_dist_break=[float]:      Minimum distance between two adsorbate atoms to break the placement search (in Å),       default: 1.40 Å")
         print("--z_tol=[float]:               Tolerance value beyond all adsorbate atoms should not fall, w.r.t to the anchor atom,    default: 1.30 Å")
         print("--fmax=[float]                 Convergence criterion for the geometry optimizations,                                    default: 0.02")
-        print("--num_steps=[int]              Total number of Monte Carlo steps from 0 to num_steps,                                   default: 10")
+        print("--num_steps=[int]              Total number of Monte Carlo steps from 0 to num_steps,                                   default: 1")
         print("--temperature=[float]          Temperature of the Monte Carlo Simulation for the Boltzmann factor (in K)                default: 293.15 K\n")
 
     @staticmethod
@@ -240,7 +240,7 @@ class InputOutput:
                 self.max_tilt_angle = float(arg_split[1])
             elif arg_split[0] == "--num_azimuth_angles":
                 self.num_azimuth_angles = int(arg_split[1])
-            elif arg_split[0] == "--num_spin_agnles":
+            elif arg_split[0] == "--num_spin_angles":
                 self.num_spin_angles = int(arg_split[1])
             elif arg_split[0] == "--min_dist_break":
                 self.min_dist_break = float(arg_split[1])

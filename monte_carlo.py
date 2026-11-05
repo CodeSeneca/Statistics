@@ -262,11 +262,12 @@ class MonteCarlo:
                 z_tol=self._io.z_tol)
 
         # Write the updated surface to a POSCAR file
+        print("The starting structure is written to POSCAR ...")
         InputOutput.write_poscar(box=self._combined_system, filename="POSCAR")
 
         # Perform a geometry optimization
         self._opt.read_box("POSCAR")
-        self._opt.set_pes()
+        self._opt.set_calculator()
         energy = self._opt.optimize(fmax=self._io.fmax)
 
         return energy, min_dist
@@ -341,6 +342,8 @@ class MonteCarlo:
                     old_energy = new_energy
                     out_file.write(f"{i}    {new_energy:15.10f} {delta_energy:15.10f} {old_energy:15.10f} {dist_min_start:5.2f} accepted\n")
                     out_file.flush()
+                    # Write only the accepted structures to XDATCAR_accepted
+                    self._opt.write_structure(filename="XDATCAR_accepted", fmt="vasp-xdatcar", append=True)
                 else:
                     out_file.write(f"{i}    {new_energy:15.10f} {delta_energy:15.10f} {old_energy:15.10f} {dist_min_start:5.2f} not accepted\n")
                     out_file.flush()
