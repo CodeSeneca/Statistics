@@ -40,20 +40,28 @@ class InputOutput:
         # Total number of tilt angles
         self.num_tilt_angles = 7
 
-        # The maximum tilt angle to be tested, default: 90
-        self.max_tilt_angle = 90
+        # The maximum tilt angle to be tested, default: 30
+        self.max_tilt_angle = 30
 
         # Total number of azimuth angles, default: 72
         self.num_azimuth_angles = 72
 
         # Total number of spin angles around the molecule's axis, default: 16
-        self.num_spin_angles = 16
+        self.num_spin_angles = 7
 
         # Minimum distance of two adsorbates to break the placement search, default: 1.40
         self.min_dist_break = 1.40
 
         # Tolerance value beyond all adsorbate atoms should not fall, default: 1.30
         self.z_tol = 1.30
+
+        # Maximum lateral shift of the adsorbate parallel to the surface (in Å), default: 0.6
+        self.shift_max = 0.6
+
+        # Number of shift rings and directions per ring, default: 2 and 8
+        self.num_shift_rings = 2
+
+        self.num_shift_dirs = 8
 
         # Convergence criterion for the geometry optimizations, default: 0.02
         self.fmax = 0.02
@@ -85,11 +93,14 @@ class InputOutput:
         print("--device=[cuda or cpu]                                                                                                  default: cpu")
         print("--cueq                         Activate the cuEquivariance acceleration, only possible for --device=cuda,               default: not activated")
         print("--num_tilt_angles=[int]        Total number of tilt angles within the placement algoritm,                               default: 7")
-        print("--max_tilt_angle=[float]       Tilt angles are tested within [0, max_tilt_angle]                                        default: 90°")
+        print("--max_tilt_angle=[float]       Tilt angles are tested within [0, max_tilt_angle]                                        default: 30°")
         print("--num_azimuth_angles=[int]     Total number of azimuth angles within the placement algorithm,                           default: 72")
-        print("--num_spin_angles=[int]        Total number of spin angles around the molecule's axis within the placement algorithm,   default: 16")
+        print("--num_spin_angles=[int]        Total number of spin angles around the molecule's axis within the placement algorithm,   default: 7")
         print("--min_dist_break=[float]:      Minimum distance between two adsorbate atoms to break the placement search (in Å),       default: 1.40 Å")
         print("--z_tol=[float]:               Tolerance value beyond all adsorbate atoms should not fall, w.r.t to the anchor atom,    default: 1.30 Å")
+        print("--shift_max=[float]:           Maximal shift of the atom w.r.t. to the adsorption place (in Å),                         default: 0.6 Å")
+        print("--num_shfit_rings=[int]:       The number of rings/radii within the maximal shift,                                      default: 2")
+        print("--num_shift_dirs=[int]:        The number of distance points per ring,                                                  default: 8")
         print("--fmax=[float]                 Convergence criterion for the geometry optimizations,                                    default: 0.02")
         print("--num_steps=[int]              Total number of Monte Carlo steps from 0 to num_steps,                                   default: 1")
         print("--temperature=[float]          Temperature of the Monte Carlo Simulation for the Boltzmann factor (in K)                default: 293.15 K\n")
@@ -246,6 +257,12 @@ class InputOutput:
                 self.min_dist_break = float(arg_split[1])
             elif arg_split[0] == "--z_tol":
                 self.z_tol = float(arg_split[1])
+            elif arg_split[0] == "--shift_max":
+                self.shift_max = float(arg_split[1])
+            elif arg_split[0] == "--num_shift_rings":
+                self.num_shift_rings = int(arg_split[1])
+            elif arg_split[0] == "--num_shift_dirs":
+                self.num_shift_dirs = int(arg_split[1])
 
     def read_surface(self) -> SimulationBox:
         """Read in the surface"""

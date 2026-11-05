@@ -115,11 +115,16 @@ class MonteCarlo:
                        offset: float, n_angles: int,
                        tilt_max: float, n_tilts,
                        n_spin, x_ok,
-                       z_tol) -> float:
+                       z_tol, shift_max: float,
+                       n_shift_rings: int, n_shift_dirs: int,
+                       score_tol: float = 1.0) -> float:
 
-        """Set an adsorbate onto the surface. The adsorbate is rotated about
-        the surface normal (through the anchor atom) and the orientation with
-        the smallest overlap with all atoms already present is chosen.
+        """Set an adsorbate onto the surface. The orientation is searched over
+
+            lateral shift (parallel to the surface, ascending length)
+              tilt angle (ascending)
+                spin about the molecule's axis
+                  azimuth about the surface normal
 
         Each orientation is ranked by the score function
 
@@ -127,7 +132,14 @@ class MonteCarlo:
 
         with dist = the distance between each pair of atoms i,j
              dref = the reference distance being the sum of covalence radii for i,j
-             **(-12) being inspired by the repulsive term in the Lennard-Jones potential
+
+        All adsorbate atoms (including the anchor) enter the score. The search
+        stops at the first shift/tilt without a close adsorbate-adsorbate contact
+        (min ratio >= x_ok). Otherwise the smallest shift/tilt is taken whose score
+        is at most score_tol times the best score.
+
+        Every tested candidate is printed right after its test, the final
+        choice is reported at the end.
 
         Assumes: surface and adsorbate share the same unit cell, both Direct."""
 
@@ -145,45 +157,74 @@ class MonteCarlo:
         # Adsorbate atoms relative to the anchor, in cartesian coordinates
         ads_frac = np.array([a.coords for a in ads_atoms])
         rel = (ads_frac - ads_frac[anchor_index]) @ cell
-        # Covalence radii of all adsorbate atoms
         ads_rc = covalent_radii[[atomic_numbers[atom.symbol] for atom in ads_atoms]]
 
         # All atoms already there: surface + previously set adsorbates
         present = self._combined_system.get_atoms()
         present_pos = np.array([a.coords for a in present]) @ cell
         present_rc = covalent_radii[[atomic_numbers[a.symbol] for a in present]]
-
-        # Atoms that move under the rotation (everything but the anchor)
-        moving = np.array([i for i in range(len(ads_atoms)) if i != anchor_index])
-        
-
         n_surf = self._surface.get_num_atoms()
-        best_xmin = np.inf
-        best_rel = rel
 
-        if len(moving) > 0:
-            # Surface normal
-            normal = np.cross(cell[0], cell[1])
-            normal /= np.linalg.norm(normal)
+        # Atoms that move under rotation and tilt (everything but the anchor)
+        moving = np.array([i for i in range(len(ads_atoms)) if i != anchor_index])
+        single = len(moving) == 0     # adsorbate consists only of the anchor
 
-            # Tilt axis: any in-plane axis works, because the rotation about the
-            # normal afterwards fixes the direction in which the molecule leans
-            tilt_axis = cell[0] - np.dot(cell[0], normal) * normal
-            tilt_axis /= np.linalg.norm(tilt_axis)
+        # Surface normal and two in-plane unit vectors
+        normal = np.cross(cell[0], cell[1])
+        normal /= np.linalg.norm(normal)
+        tilt_axis = cell[0] - np.dot(cell[0], normal) * normal
+        tilt_axis /= np.linalg.norm(tilt_axis)
+        in_plane_2 = np.cross(normal, tilt_axis)
 
-            # Reference distances for all pairs (moving atom, present atom)
-            d_ref = ads_rc[moving][:, None] + present_rc[None, :]
+        # Lateral shifts parallel to the surface: (0, 0) first, then rings of
+        # increasing radius, so small shifts are always preferred
+        shifts = [np.zeros(3)]
+        radii = (np.linspace(shift_max / n_shift_rings, shift_max, n_shift_rings)
+                 if n_shift_rings > 0 else [])
+        for r in radii:
+            for theta in np.linspace(0.0, 2.0 * np.pi, n_shift_dirs, endpoint=False):
+                shifts.append(r * (np.cos(theta) * tilt_axis + np.sin(theta) * in_plane_2))
 
-            # Lowest height (along the normal) of the original orientation
-            z_min_ref = np.min(rel @ normal)
-
+        # Angle grids (a single atom needs no rotation)
+        if single:
+            tilts = np.array([0.0])
+            spins = np.array([0.0])
+            azimuths = np.array([0.0])
+        else:
             tilts = np.radians(np.linspace(0.0, tilt_max, n_tilts))
             spins = np.linspace(0.0, 2.0 * np.pi, n_spin, endpoint=False)
             azimuths = np.linspace(0.0, 2.0 * np.pi, n_angles, endpoint=False)
 
-            best_score = np.inf
+        # Rotation matrices about the normal for all azimuths (built once)
+        rots_az = np.array([self._rotation_matrix(normal, phi) for phi in azimuths])
 
-            # Outer loop: tilt angle, in ascending order
+        # Reference distances for all pairs (adsorbate atom, present atom);
+        # the anchor is included, because it moves with the shift
+        d_ref = ads_rc[:, None] + present_rc[None, :]
+        n_present = present_pos.shape[0]
+
+        # Lowest height (along the normal) of the original orientation
+        z_min_ref = np.min(rel @ normal)
+
+        best_rel = rel
+        best_shift = np.zeros(3)
+        best_xmin = np.inf
+
+        candidates = []          # (score, xmin, rel, shift, row number), ascending shift/tilt
+        n_rows = 0               # number of printed table rows
+        chosen_idx = None        # row number of the chosen candidate
+        threshold = None         # score_tol * s_min (only if no early stop)
+        stopped_early = False
+
+        # Header of the table (rows are printed during the search)
+        print(f"\nPlace {place_index}: placement candidates", flush=True)
+        print(f"{'No.':>4} {'shift/Å':>8} {'tilt/°':>7} {'score':>10} {'min ratio':>10}", flush=True)
+
+        # Outermost loop: lateral shift
+        for shift in shifts:
+            base = anchor_pos + shift
+
+            # Loop: tilt angle, in ascending order
             for tilt in tilts:
                 r_tilt = self._rotation_matrix(tilt_axis, tilt)
 
@@ -196,46 +237,71 @@ class MonteCarlo:
                     spun = rel @ self._rotation_matrix(normal, spin).T
                     tilted = spun @ r_tilt.T
 
-                    # Reject orientations in which atoms sink below the anchor
-                    # plane (heights do not change under the azimuthal rotation)
-                    if np.min(tilted[moving] @ normal) < z_min_ref - z_tol:
+                    # Reject orientations in which atoms sink below the anchor plane
+                    if not single and np.min(tilted[moving] @ normal) < z_min_ref - z_tol:
                         continue
 
-                    # Inner loop: azimuthal rotation about the surface normal
-                    for phi in azimuths:
-                        trial = tilted @ self._rotation_matrix(normal, phi).T
+                    # All azimuths at once: trials has the shape (n_az, n_ads, 3)
+                    trials = np.einsum("aij,nj->ani", rots_az, tilted)
+                    pos = (base + trials).reshape(-1, 3)
 
-                        _, dist = get_distances(anchor_pos + trial[moving], present_pos,
-                                                cell=cell, pbc=True)
-                        ratio = dist / d_ref
-                        score = np.sum(ratio ** -12)
-                        if score < tilt_score:
-                            tilt_score = score
-                            tilt_rel = trial
+                    _, dist = get_distances(pos, present_pos, cell=cell, pbc=True)
+                    ratio = dist.reshape(len(azimuths), len(ads_atoms), n_present) / d_ref
+                    scores = np.sum(ratio ** -12, axis=(1, 2))
 
-                            # Consider only the contacts to other adsorbates and not to the surface
-                            ratio_ads = ratio[:, n_surf:]
-                            tilt_xmin = ratio_ads.min() if ratio_ads.size > 0 else np.inf
+                    a = int(np.argmin(scores))
+                    if scores[a] < tilt_score:
+                        tilt_score = scores[a]
+                        tilt_rel = trials[a]
+
+                        # Only contacts to other adsorbates count for the stop criterion
+                        ratio_ads = ratio[a][:, n_surf:]
+                        tilt_xmin = ratio_ads.min() if ratio_ads.size > 0 else np.inf
 
                 if tilt_rel is None:
                     continue
 
-                print(f"place {place_index}: tilt={np.degrees(tilt):5.1f}°  "
-                      f"min ratio (ads-ads)={tilt_xmin:.2f}  score={tilt_score:.3g}")
+                # Print the row immediately after the test of this candidate
+                n_rows += 1
+                idx = n_rows
+                print(f"{idx:4d} {np.linalg.norm(shift):8.2f} {np.degrees(tilt):7.1f} "
+                      f"{tilt_score:10.3g} {tilt_xmin:10.2f}", flush=True)
 
-                # Smallest tilt without any close contact: take it and stop
+                # Smallest shift/tilt without any close contact: take it and stop
                 if tilt_xmin >= x_ok:
-                    best_rel = tilt_rel
-                    best_xmin = tilt_xmin
+                    best_rel, best_shift, best_xmin = tilt_rel, shift, tilt_xmin
+                    chosen_idx = idx
+                    stopped_early = True
                     break
 
-                if tilt_score < best_score:
-                    best_score = tilt_score
-                    best_rel = tilt_rel
-                    best_xmin = tilt_xmin
+                candidates.append((tilt_score, tilt_xmin, tilt_rel, shift, idx))
 
-        # Back to direct coordinates (unverändert)
-        new_frac = anchor_frac + best_rel @ cell_inv
+            if stopped_early:
+                break
+
+        # Nothing was good enough: the smallest shift/tilt that is almost as good as the best
+        if not stopped_early and candidates:
+            s_min = min(c[0] for c in candidates)
+            threshold = score_tol * s_min
+            for sc, xm, rl, sh, idx in candidates:
+                if sc <= threshold:
+                    best_rel, best_shift, best_xmin = rl, sh, xm
+                    chosen_idx = idx
+                    break
+
+        # Report the choice at the end
+        if stopped_early:
+            print(f"-> chosen: No. {chosen_idx} (stopped early, min ratio >= x_ok = {x_ok})\n",
+                  flush=True)
+        elif chosen_idx is not None:
+            print(f"-> chosen: No. {chosen_idx} (score {sc:.3g} <= threshold "
+                  f"score_tol * s_min = {threshold:.3g})\n", flush=True)
+        else:
+            print("-> no valid candidate, adsorbate placed in its original orientation\n",
+                  flush=True)
+
+        # Back to direct coordinates: the anchor sits at anchor_frac + shift
+        new_frac = anchor_frac + (best_shift + best_rel) @ cell_inv
         for atom, coords in zip(ads_atoms, new_frac):
             self._combined_system.add_atom(Atom(symbol=atom.symbol, coords=coords))
 
@@ -259,7 +325,10 @@ class MonteCarlo:
                 n_angles=self._io.num_azimuth_angles,
                 n_spin=self._io.num_spin_angles,
                 x_ok=self._io.min_dist_break,
-                z_tol=self._io.z_tol)
+                z_tol=self._io.z_tol,
+                shift_max=self._io.shift_max,
+                n_shift_rings=self._io.num_shift_rings,
+                n_shift_dirs=self._io.num_shift_dirs)
 
         # Write the updated surface to a POSCAR file
         print("The starting structure is written to POSCAR ...")
