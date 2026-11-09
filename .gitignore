@@ -8,3 +8,4 @@ XDATCAR*
 *.out
 .venv/
 OpenBabel/
+aver.py

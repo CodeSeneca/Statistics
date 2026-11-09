@@ -72,6 +72,76 @@ class MonteCarlo:
                   random_indeces.append(random_index)
                   break
 
+    def _determine_occupation(self, filename: str) -> None:
+        """Determine the occupation pattern of a given POSCAR/CONTCAR file
+        and set self._occ1 accordingly.
+
+        Surface atoms: per element the first atoms in the file (as many as in
+        the clean surface). Every adsorbate is represented by its anchor atom,
+        which is assigned to the nearest surface site within the surface plane."""
+
+        from collections import Counter
+
+        box = InputOutput.read_poscar(filename)
+        cell = self._surface.get_cell_matrix()
+        cell_inv = np.linalg.inv(cell)
+
+        def to_frac(box_, atoms_):
+            """Direct coordinates of atoms, whatever the file format is"""
+            xyz = np.array([a.coords for a in atoms_], dtype=float)
+            return xyz if box_.is_direct() else xyz @ cell_inv
+
+        # Split into surface atoms and adsorbate atoms: within each element
+        # group the surface atoms come first
+        remaining = Counter(a.symbol for a in self._surface.get_atoms())
+        ads_part = []
+        for atom in box.get_atoms():
+            if remaining[atom.symbol] > 0:
+                remaining[atom.symbol] -= 1
+            else:
+                ads_part.append(atom)
+
+        if any(n > 0 for n in remaining.values()):
+            raise ValueError(f"{filename}: fewer surface atoms than in the clean surface")
+
+        # Position of the anchor among the atoms of its own element
+        ads_ref = self._adsorbate.get_atoms()
+        anchor_index = self._io.get_anchor_index()
+        anchor_symbol = ads_ref[anchor_index].symbol
+        same = [i for i, a in enumerate(ads_ref) if a.symbol == anchor_symbol]
+        m = len(same)
+        r = same.index(anchor_index)
+
+        if len(ads_part) % len(ads_ref) != 0:
+            raise ValueError(f"{filename}: {len(ads_part)} adsorbate atoms are not a "
+                             f"multiple of {len(ads_ref)} atoms per adsorbate")
+        n_mol = len(ads_part) // len(ads_ref)
+
+        anchors = [a for a in ads_part if a.symbol == anchor_symbol][r::m]
+        if len(anchors) != n_mol:
+            raise ValueError(f"{filename}: found {len(anchors)} anchors for {n_mol} adsorbates")
+
+        # Nearest surface site within the plane (minimum image, z is ignored)
+        sites_frac = to_frac(self._surface, self._surface.get_atoms())[:, :2]
+        anch_frac = to_frac(box, anchors)[:, :2]
+        diff = anch_frac[:, None, :] - sites_frac[None, :, :]
+        diff -= np.round(diff)
+        dist = np.linalg.norm(diff @ cell[:2, :2], axis=2)     # (n_mol, n_sites)
+        site_idx = np.argmin(dist, axis=1)
+        d_min = dist[np.arange(n_mol), site_idx]
+
+        for j in np.where(d_min > 0.7)[0]:
+            print(f"WARNING: anchor {j} is {d_min[j]:.2f} A away from the nearest site")
+
+        if len(set(site_idx.tolist())) != n_mol:
+            raise ValueError(f"{filename}: two adsorbates are assigned to the same site")
+
+        self._occ1 = np.zeros(self._surface.get_num_atoms(), dtype=int)
+        self._occ1[site_idx] = 1
+
+        print(f"Occupation pattern from {filename}: {n_mol} adsorbates on sites "
+              f"{sorted(site_idx.tolist())}\n")
+
     def _place_jump(self) -> None:
         """Let one adsorbate jump randomically by changing two places 0 and 1"""
 
@@ -378,7 +448,13 @@ class MonteCarlo:
 
         # Generate a random occupation pattern according to
         # num_adsorbed_places
-        self._make_random_occupation(num_adsorbed_places)
+        # But only if no starting structure was given
+        if not self._io.starting_structure:
+            print("No starting structure given. The first occupation pattern will be constructed randomly.\n")
+            self._make_random_occupation(num_adsorbed_places)
+        else:
+            print(f"The first occupation pattern will be constructed according to {self._io.starting_structure} ...\n")
+            self._determine_occupation(filename=self._io.starting_structure)
 
         # Perform self._num_steps Monte Carlo steps
         print("Entering Monte Carlo loop ...")

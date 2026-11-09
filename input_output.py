@@ -72,6 +72,9 @@ class InputOutput:
         # Temperature of the Monte Carlo Simulation in K, default: 293.15 K (room temperature)
         self.temp = 293.15
 
+        # Starting structure/occupation pattern for the Monte Carlo Simulation, default: None
+        self.starting_structure = None
+
     @staticmethod
     def print_help() -> None:
         """Print a help message to the console"""
@@ -83,6 +86,7 @@ class InputOutput:
         print("Usage: python main.py [options]\n")
         print("--surface=[string]             Filename of the clean surface,                                                           default: POSCAR_surf")
         print("--adsorbate=[string]           Filename of the adsorbate,                                                               default: POSCAR_ads")
+        print("--starting_structure=[string]  Filename of the starting structure/occupation pattern                                    default: None")
         print("--anchor_index=[int]           Index of the atom with whom the adsorbate adsorbs onto the surface,                      default: 0")
         print("--num_adsorbed_places=[int]    Number of adsorbed places:                                                               default: 1")
         print("--offset=[float]               Distance of the adsorbate to the surface (in direct coordinates),                        default: 0.05")
@@ -131,7 +135,7 @@ class InputOutput:
             for i, elem in enumerate(elements):
                 for j in range(numbers[i]):
                     coords = [ float(x) for x in poscar.readline().split() ]
-                    atom = Atom(elem, coords)
+                    atom = Atom(symbol=elem, coords=coords)
                     atoms.append(atom)
 
             # Generate the SimulationBox object
@@ -263,6 +267,8 @@ class InputOutput:
                 self.num_shift_rings = int(arg_split[1])
             elif arg_split[0] == "--num_shift_dirs":
                 self.num_shift_dirs = int(arg_split[1])
+            elif arg_split[0] == "--starting_structure":
+                self.starting_structure = arg_split[1]
 
     def read_surface(self) -> SimulationBox:
         """Read in the surface"""
