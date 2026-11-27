@@ -1,4 +1,4 @@
-"Module main: Main module to drive everything"
+""" Module main: Main module to drive everything """
 
 from monte_carlo import MonteCarlo
 
